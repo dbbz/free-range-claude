@@ -1,12 +1,17 @@
 <div align="center">
 
-# free-range-claude
+# :chicken: Free-Range Claude
 
-**Run Claude Code autonomously inside a firewalled container.**
+**Run Claude Code autonomously inside a firewalled container.**<br>
 **Skip permission prompts safely.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Built for Claude Code](https://img.shields.io/badge/built_for-Claude_Code-8B5CF6)](https://docs.anthropic.com/en/docs/claude-code)
+[![macOS](https://img.shields.io/badge/macOS-Colima-000000?logo=apple&logoColor=white)](https://github.com/abiosoft/colima)
+[![Docker](https://img.shields.io/badge/Docker-Container-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Shell: zsh](https://img.shields.io/badge/shell-zsh-green?logo=gnubash&logoColor=white)](#)
+
+<sub>Autonomous Claude Code, penned up just enough to keep it out of trouble.</sub>
 
 </div>
 
