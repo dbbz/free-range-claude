@@ -172,6 +172,10 @@ just dev::build   # from any project -- rebuilds the shared image
 
 On first launch inside the container, Claude Code will ask you to log in. This is normal -- macOS stores tokens in Keychain, but the container (Linux) uses file-based tokens. You only need to do this once. The token is saved to `~/.claude` on your host via the bind mount and persists across container rebuilds.
 
+## Acknowledgments
+
+Thanks to [@zeapo](https://github.com/zeapo) for the original idea.
+
 ## License
 
 [MIT](LICENSE)
