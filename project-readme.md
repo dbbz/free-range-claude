@@ -1,6 +1,6 @@
 # Claude Code Sandbox
 
-This project uses [claude-devcontainer](https://github.com/YOURUSER/claude-devcontainer)
+This project uses [claude-devcontainer](https://github.com/dbbz/free-range-claude)
 to run Claude Code autonomously inside a firewalled container.
 
 ## Usage

@@ -20,7 +20,7 @@ If you want something different, fork it and customize it -- with Claude Code it
 ## Install
 
 ```bash
-git clone https://github.com/YOURUSER/claude-devcontainer ~/.config/claude-devcontainer
+git clone https://github.com/dbbz/free-range-claude ~/.config/claude-devcontainer
 ~/.config/claude-devcontainer/install.sh
 ```
 
