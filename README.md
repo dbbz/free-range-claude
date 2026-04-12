@@ -107,7 +107,13 @@ just dev::status             # container & firewall health at a glance
 just dev::logs               # tail container logs
 just dev::down               # tear down the container
 just dev::rebuild            # rebuild image (cached) + restart
+just dev::playwright-on      # enable the Playwright MCP server for this project
+just dev::playwright-off     # disable it
 ```
+
+### Browser automation (Playwright MCP)
+
+The sandbox image bundles [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) and a headless Chromium so Claude Code can drive a browser without reaching outside the firewall. It's off by default -- enable it per-project with `just dev::playwright-on`, then restart Claude.
 
 `Cmd+T` in the iTerm2 window opens a new tab with another Claude Code session. Each tab is an independent, parallel session -- all sandboxed, all sharing the same project.
 
@@ -160,7 +166,7 @@ This is defense-in-depth, not absolute isolation. Use it with repositories you t
 | `Dockerfile` | Base image: Node.js 20 + Claude Code + zsh + tmux + firewall tools |
 | `init-firewall.sh` | iptables firewall, runs on container startup |
 | `tmux-claude.conf` | tmux config: every new window = new Claude session |
-| `dev.just` | Template just module, copied into each project |
+| `dev.just` | Template just module, symlinked into each project's `.devcontainer/` |
 | `init.sh` | Per-project wizard |
 | `install.sh` | One-time machine setup |
 | `project-readme.md` | Template README, copied into each project's `.devcontainer/` |
@@ -172,6 +178,8 @@ cd ~/.config/claude-devcontainer
 git pull
 just dev::build   # from any project -- rebuilds the shared image
 ```
+
+Each project's `.devcontainer/dev.just` is a symlink to the template, so recipe changes apply immediately -- no per-project update step. Projects initialized before the symlink change still have a plain copy; run `just dev::sync` inside those once to replace it with a symlink.
 
 ## First-time auth
 

@@ -17,6 +17,9 @@ just dev::logs               # tail container logs (-f to follow)
 just dev::down               # stop and remove the container
 just dev::rebuild            # rebuild image (cached) + restart
 just dev::rebuild-full       # rebuild image from scratch + restart
+just dev::playwright-on      # enable Playwright MCP (browser automation)
+just dev::playwright-off     # disable it
+just dev::sync               # re-link dev.just to the template (one-time migration)
 ```
 
 Cmd+T in the iTerm2 window opens a new parallel Claude session.
