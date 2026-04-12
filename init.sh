@@ -246,7 +246,7 @@ success "devcontainer.json"
 
 # --- Copy dev.just and README ---
 
-cp "$TEMPLATE_DIR/dev.just" "$DEVCONTAINER_DIR/dev.just" 2>/dev/null || true
+ln -sf "$TEMPLATE_DIR/dev.just" "$DEVCONTAINER_DIR/dev.just"
 cp "$TEMPLATE_DIR/project-readme.md" "$DEVCONTAINER_DIR/README.md" 2>/dev/null || true
 
 if [ -f "$DEVCONTAINER_DIR/dev.just" ]; then

@@ -18,6 +18,10 @@ setup:
 build:
     docker build -t claude-sandbox ~/.config/claude-devcontainer
 
+# Sync dev.just with the template (symlink so future updates auto-apply)
+sync:
+    @ln -sf ~/.config/claude-devcontainer/dev.just {{ root }}/.devcontainer/dev.just && echo "dev.just symlinked to template — future updates auto-apply."
+
 # Start the devcontainer (idempotent)
 up:
     devcontainer up --workspace-folder {{ root }}
@@ -81,6 +85,32 @@ status:
     else
         printf "${RED}Network:${NC}   Anthropic API unreachable\n"
     fi
+
+# Enable Playwright MCP (browser automation) for this project
+playwright-on:
+    #!/usr/bin/env bash
+    f="{{ root }}/.mcp.json"
+    entry='{"command":"npx","args":["@playwright/mcp","--headless"]}'
+    if [ -f "$f" ]; then
+        jq --argjson pw "$entry" '.mcpServers.playwright = $pw' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    else
+        echo '{"mcpServers":{"playwright":'"$entry"'}}' | jq . > "$f"
+    fi
+    echo "Playwright MCP enabled — restart Claude to pick it up."
+
+# Disable Playwright MCP for this project
+playwright-off:
+    #!/usr/bin/env bash
+    f="{{ root }}/.mcp.json"
+    if [ ! -f "$f" ]; then
+        echo "No .mcp.json found."; exit 0
+    fi
+    jq 'del(.mcpServers.playwright)' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    # Remove file if no servers remain
+    if [ "$(jq '.mcpServers | length' "$f")" = "0" ]; then
+        rm "$f"
+    fi
+    echo "Playwright MCP disabled — restart Claude to pick it up."
 
 # Tail container logs (-f to follow)
 logs *args:
