@@ -55,7 +55,7 @@ if [ -n "${BASE_IMAGE:-}" ]; then
     echo "Using base image: $BASE_IMAGE"
     BUILD_ARGS+=(--build-arg "BASE_IMAGE=$BASE_IMAGE")
 fi
-docker build "${BUILD_ARGS[@]}" -t claude-sandbox "$INSTALL_DIR"
+docker build ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} -t claude-sandbox "$INSTALL_DIR"
 
 # --- Add shell alias ---
 

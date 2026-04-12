@@ -53,7 +53,7 @@ fi
 # --- Auto-add package registries for selected runtimes ---
 
 RUNTIME_HOSTS=()
-for runtime in "${RUNTIMES[@]}"; do
+for runtime in ${RUNTIMES[@]+"${RUNTIMES[@]}"}; do
     case "$runtime" in
         python)
             RUNTIME_HOSTS+=("pypi.org" "files.pythonhosted.org")
@@ -83,7 +83,7 @@ echo "   Examples: registry.mycompany.com, 100.64.0.0/10, 10.0.1.50"
 echo ""
 read -rp "   Extra: " extra_hosts_input
 
-EXTRA_HOSTS=("${RUNTIME_HOSTS[@]}")
+EXTRA_HOSTS=(${RUNTIME_HOSTS[@]+"${RUNTIME_HOSTS[@]}"})
 if [ -n "$extra_hosts_input" ]; then
     IFS=',' read -ra hosts <<< "$extra_hosts_input"
     for h in "${hosts[@]}"; do
@@ -136,7 +136,7 @@ FROM claude-sandbox
 USER root
 DOCKERFILE_HEAD
 
-    for runtime in "${RUNTIMES[@]}"; do
+    for runtime in ${RUNTIMES[@]+"${RUNTIMES[@]}"}; do
         case "$runtime" in
             python)
                 cat >> "$DEVCONTAINER_DIR/Dockerfile" << 'EOF'
@@ -181,7 +181,7 @@ fi
 
 # Build runArgs array
 RUN_ARGS='    "--cap-add=NET_ADMIN",\n    "--cap-add=NET_RAW"'
-for entry in "${ADD_HOSTS[@]}"; do
+for entry in ${ADD_HOSTS[@]+"${ADD_HOSTS[@]}"}; do
     RUN_ARGS="$RUN_ARGS"',\n    "--add-host='"$entry"'"'
 done
 
@@ -192,9 +192,9 @@ CONTAINER_ENV='    "NODE_OPTIONS": "--max-old-space-size=4096",
 
 if [ ${#EXTRA_HOSTS[@]} -gt 0 ] || [ ${#ADD_HOST_IPS[@]} -gt 0 ]; then
     all_extra=()
-    for h in "${EXTRA_HOSTS[@]}"; do all_extra+=("$h"); done
+    for h in ${EXTRA_HOSTS[@]+"${EXTRA_HOSTS[@]}"}; do all_extra+=("$h"); done
     # Add --add-host hostnames to the firewall allowlist too (need their IPs allowed)
-    for ip in "${ADD_HOST_IPS[@]}"; do all_extra+=("$ip"); done
+    for ip in ${ADD_HOST_IPS[@]+"${ADD_HOST_IPS[@]}"}; do all_extra+=("$ip"); done
     extra_joined=$(IFS=','; echo "${all_extra[*]}")
     CONTAINER_ENV="$CONTAINER_ENV"',
     "EXTRA_ALLOWED_HOSTS": "'"$extra_joined"'"'

@@ -94,7 +94,7 @@ if [ -n "${EXTRA_ALLOWED_HOSTS:-}" ]; then
 fi
 
 # Add bare IPs and CIDRs directly
-for entry in "${EXTRA_IPS[@]}"; do
+for entry in ${EXTRA_IPS[@]+"${EXTRA_IPS[@]}"}; do
     ipset add allowed-domains "$entry"
 done
 
