@@ -1,1 +1,5 @@
 .DS_Store
+
+# Artifacts from running init.sh inside the template repo itself
+/.devcontainer/
+/justfile
