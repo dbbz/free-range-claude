@@ -54,3 +54,40 @@ down:
     else
         echo "No sandbox found."
     fi
+
+# Show sandbox status and firewall health
+status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    GREEN='\033[0;32m' RED='\033[0;31m' YELLOW='\033[1;33m'
+    BOLD='\033[1m' DIM='\033[2m' NC='\033[0m'
+    id=$(docker ps -aq --filter "label=devcontainer.local_folder={{ root }}")
+    if [ -z "$id" ]; then
+        printf "${YELLOW}Container:${NC} not found\n"
+        printf "${DIM}Run 'just dev::up' to start.${NC}\n"
+        exit 0
+    fi
+    state=$(docker inspect -f '{{ "{{" }}.State.Status{{ "}}" }}' "$id")
+    if [ "$state" = "running" ]; then
+        printf "${GREEN}Container:${NC} running ${DIM}(%s)${NC}\n" "$id"
+    else
+        printf "${YELLOW}Container:${NC} %s ${DIM}(%s)${NC}\n" "$state" "$id"
+        exit 0
+    fi
+    ip_count=$(docker exec "$id" sudo ipset list allowed-domains 2>/dev/null | grep -cE "^[0-9]" || echo "0")
+    printf "${GREEN}Firewall:${NC}  %s allowed IPs/CIDRs\n" "$ip_count"
+    if docker exec "$id" curl -sf --connect-timeout 3 https://api.anthropic.com >/dev/null 2>&1; then
+        printf "${GREEN}Network:${NC}   Anthropic API reachable\n"
+    else
+        printf "${RED}Network:${NC}   Anthropic API unreachable\n"
+    fi
+
+# Tail container logs (-f to follow)
+logs *args:
+    #!/usr/bin/env bash
+    id=$(docker ps -aq --filter "label=devcontainer.local_folder={{ root }}")
+    if [ -z "$id" ]; then
+        echo "No sandbox found. Run 'just dev::up' to start."
+        exit 1
+    fi
+    docker logs {{ args }} "$id"

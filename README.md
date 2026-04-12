@@ -1,10 +1,28 @@
-# claude-devcontainer
+<div align="center">
 
-Run Claude Code autonomously inside a firewalled container. Skip permission prompts safely.
+# free-range-claude
+
+**Run Claude Code autonomously inside a firewalled container.**
+**Skip permission prompts safely.**
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Built for Claude Code](https://img.shields.io/badge/built_for-Claude_Code-8B5CF6)](https://docs.anthropic.com/en/docs/claude-code)
+
+</div>
+
+---
 
 ## The problem
 
 Claude Code's `--dangerously-skip-permissions` flag lets you run it unattended, but on bare metal that's genuinely dangerous -- a prompt injection or hallucination could delete files or exfiltrate data. The safe version: run Claude Code inside a container with a network firewall that blocks everything except the services it actually needs.
+
+```mermaid
+flowchart LR
+    A["just dev::claude"] --> B["Container\n(Colima VM)"]
+    B --> C{"iptables\nfirewall"}
+    C -- "ALLOW" --> D["Anthropic API\nGitHub · npm"]
+    C -- "DROP" --> E["Everything else"]
+```
 
 ## The stack
 
@@ -17,6 +35,22 @@ This is opinionated and not sorry about it:
 
 If you want something different, fork it and customize it -- with Claude Code itself.
 
+## Quick start
+
+```bash
+# Install (one-time)
+git clone https://github.com/dbbz/free-range-claude ~/.config/claude-devcontainer
+~/.config/claude-devcontainer/install.sh
+
+# Set up a project
+cd my-project
+claude-devcontainer-init
+
+# Launch
+just dev::up
+just dev::claude
+```
+
 ## Install
 
 ```bash
@@ -24,7 +58,7 @@ git clone https://github.com/dbbz/free-range-claude ~/.config/claude-devcontaine
 ~/.config/claude-devcontainer/install.sh
 ```
 
-This installs prerequisites (docker CLI, devcontainer CLI), builds the sandbox image, and adds a `claude-devcontainer-init` alias to your shell.
+This installs prerequisites (docker CLI, devcontainer CLI), builds the sandbox image, and adds a `claude-devcontainer-init` alias to your shell (zsh, bash, and fish).
 
 To use a different base image (e.g. for a Python-heavy setup):
 
@@ -64,6 +98,8 @@ just dev::claude             # launch Claude Code (autonomous, firewalled)
 just dev::claude -p "prompt" # with a specific prompt
 just dev::shell              # interactive zsh inside the sandbox
 just dev::exec cargo test    # run any command inside
+just dev::status             # container & firewall health at a glance
+just dev::logs               # tail container logs
 just dev::down               # tear down the container
 just dev::rebuild            # rebuild image (cached) + restart
 ```
@@ -72,20 +108,18 @@ just dev::rebuild            # rebuild image (cached) + restart
 
 ## How it works
 
-```
-just dev::claude
-  |
-  v
-devcontainer exec ... tmux -CC ...
-  |
-  v
-docker exec (via colima's Linux VM)
-  |
-  v
-Container: Claude Code running with --dangerously-skip-permissions
-  - Firewall: only Anthropic API, GitHub, npm allowed
-  - Project directory mounted at /workspaces/<project>
-  - Auth tokens shared from host via ~/.claude bind-mount
+```mermaid
+flowchart TB
+    cmd["just dev::claude"] --> dc["devcontainer exec"]
+    dc --> tmux["tmux -CC\n(iTerm2 native integration)"]
+    tmux --> claude["Claude Code\n--dangerously-skip-permissions"]
+
+    project[("~/my-project")] -.->|"bind mount"| claude
+    creds[("~/.claude")] -.->|"bind mount"| claude
+
+    claude <--> fw{"iptables\n+ ipset"}
+    fw -- "ALLOW" --> allow["Anthropic API\nGitHub (dynamic IPs)\nnpm · Sentry · statsig"]
+    fw -- "DROP" --> deny["Everything else"]
 ```
 
 On container startup, `init-firewall.sh` configures iptables:
@@ -140,4 +174,4 @@ On first launch inside the container, Claude Code will ask you to log in. This i
 
 ## License
 
-MIT
+[MIT](LICENSE)

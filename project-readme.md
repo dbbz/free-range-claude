@@ -12,6 +12,8 @@ just dev::claude             # run Claude Code (autonomous, permissions skipped)
 just dev::claude -p "prompt" # run with a specific prompt
 just dev::shell              # interactive zsh inside the sandbox
 just dev::exec cargo test    # run any command inside the sandbox
+just dev::status             # container & firewall health at a glance
+just dev::logs               # tail container logs (-f to follow)
 just dev::down               # stop and remove the container
 just dev::rebuild            # rebuild image (cached) + restart
 just dev::rebuild-full       # rebuild image from scratch + restart

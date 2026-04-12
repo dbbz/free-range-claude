@@ -4,20 +4,36 @@ set -euo pipefail
 # claude-devcontainer — project init wizard
 # Run from any project directory to generate .devcontainer/
 
+# --- Colors ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+info()    { printf "${BLUE}::${NC} %s\n" "$1"; }
+success() { printf "${GREEN} ✓${NC} %s\n" "$1"; }
+warn()    { printf "${YELLOW} !${NC} %s\n" "$1"; }
+error()   { printf "${RED} ✗${NC} %s\n" "$1"; }
+step()    { printf "\n${BOLD}%s${NC}\n" "$1"; }
+
 PROJECT_DIR="$(pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 DEVCONTAINER_DIR="$PROJECT_DIR/.devcontainer"
 TEMPLATE_DIR="$(dirname "$(realpath "$0")")"
 
 echo ""
-echo "claude-devcontainer — Project Setup"
-echo "===================================="
-echo "Project: $PROJECT_NAME"
-echo "Directory: $PROJECT_DIR"
+printf "${BOLD}free-range-claude${NC} ${DIM}— project setup${NC}\n"
+printf "${DIM}────────────────────────────────${NC}\n"
+printf "Project:   ${BOLD}%s${NC}\n" "$PROJECT_NAME"
+printf "Directory: ${DIM}%s${NC}\n" "$PROJECT_DIR"
 echo ""
 
 if [ -d "$DEVCONTAINER_DIR" ]; then
-    read -rp ".devcontainer/ already exists. Overwrite? [y/N] " overwrite
+    warn ".devcontainer/ already exists."
+    read -rp "  Overwrite? [y/N] " overwrite
     if [[ ! "$overwrite" =~ ^[Yy]$ ]]; then
         echo "Aborted."
         exit 0
@@ -26,13 +42,13 @@ fi
 
 # --- Question 1: Runtimes ---
 
-echo "1. Extra runtimes"
+step "1. Extra runtimes"
 echo "   The base image includes Node.js 20, git, zsh, and Claude Code."
 echo "   Select additional runtimes (comma-separated, or Enter for none):"
 echo ""
-echo "   [1] Python 3 + uv"
-echo "   [2] Rust (stable)"
-echo "   [3] Go"
+printf "   ${DIM}[1]${NC} Python 3 + uv\n"
+printf "   ${DIM}[2]${NC} Rust (stable)\n"
+printf "   ${DIM}[3]${NC} Go\n"
 echo ""
 read -rp "   Selection: " runtimes_input
 
@@ -45,7 +61,7 @@ if [ -n "$runtimes_input" ]; then
             1) RUNTIMES+=("python") ;;
             2) RUNTIMES+=("rust") ;;
             3) RUNTIMES+=("go") ;;
-            *) echo "   Skipping unknown option: $sel" ;;
+            *) warn "Unknown option: $sel" ;;
         esac
     done
 fi
@@ -57,29 +73,28 @@ for runtime in ${RUNTIMES[@]+"${RUNTIMES[@]}"}; do
     case "$runtime" in
         python)
             RUNTIME_HOSTS+=("pypi.org" "files.pythonhosted.org")
-            echo "   -> Will allow pypi.org, files.pythonhosted.org"
+            success "Will allow pypi.org, files.pythonhosted.org"
             ;;
         rust)
             RUNTIME_HOSTS+=("crates.io" "static.crates.io" "index.crates.io")
-            echo "   -> Will allow crates.io, static.crates.io, index.crates.io"
+            success "Will allow crates.io, static.crates.io, index.crates.io"
             ;;
         go)
             RUNTIME_HOSTS+=("proxy.golang.org" "sum.golang.org" "storage.googleapis.com")
-            echo "   -> Will allow proxy.golang.org, sum.golang.org, storage.googleapis.com"
+            success "Will allow proxy.golang.org, sum.golang.org, storage.googleapis.com"
             ;;
     esac
 done
 
 # --- Question 2: Extra allowed hosts ---
 
-echo ""
-echo "2. Extra allowed network hosts"
+step "2. Extra allowed network hosts"
 echo "   The firewall allows: Anthropic API, GitHub, npm, Sentry, VS Code."
 if [ ${#RUNTIME_HOSTS[@]} -gt 0 ]; then
     echo "   Package registries for selected runtimes will be added automatically."
 fi
 echo "   Add more domains, IPs, or CIDR ranges (comma-separated, or Enter for none)."
-echo "   Examples: registry.mycompany.com, 100.64.0.0/10, 10.0.1.50"
+printf "   ${DIM}Examples: registry.mycompany.com, 100.64.0.0/10, 10.0.1.50${NC}\n"
 echo ""
 read -rp "   Extra: " extra_hosts_input
 
@@ -94,11 +109,10 @@ fi
 
 # --- Question 3: Static host entries ---
 
-echo ""
-echo "3. Static /etc/hosts entries"
+step "3. Static /etc/hosts entries"
 echo "   For hosts without public DNS (e.g. Tailscale peers, internal services)."
-echo "   Format: hostname:ip (comma-separated, or Enter for none)."
-echo "   Example: myserver.ts.net:100.83.80.91"
+printf "   ${DIM}Format: hostname:ip (comma-separated, or Enter for none)${NC}\n"
+printf "   ${DIM}Example: myserver.ts.net:100.83.80.91${NC}\n"
 echo ""
 read -rp "   Entries: " add_hosts_input
 
@@ -114,15 +128,14 @@ if [ -n "$add_hosts_input" ]; then
             ADD_HOSTS+=("$host:$ip")
             ADD_HOST_IPS+=("$ip")
         else
-            echo "   Skipping invalid entry (need host:ip): $entry"
+            warn "Skipping invalid entry (need host:ip): $entry"
         fi
     done
 fi
 
 # --- Generate files ---
 
-echo ""
-echo "Generating .devcontainer/..."
+step "Generating .devcontainer/"
 mkdir -p "$DEVCONTAINER_DIR"
 
 # --- Generate Dockerfile (only if extra runtimes selected) ---
@@ -174,7 +187,7 @@ EOF
 
     echo "" >> "$DEVCONTAINER_DIR/Dockerfile"
     echo "USER node" >> "$DEVCONTAINER_DIR/Dockerfile"
-    echo "  -> Dockerfile (extends claude-sandbox with: ${RUNTIMES[*]})"
+    success "Dockerfile (extends claude-sandbox with: ${RUNTIMES[*]})"
 fi
 
 # --- Generate devcontainer.json ---
@@ -229,7 +242,7 @@ printf '{
 }
 ' > "$DEVCONTAINER_DIR/devcontainer.json"
 
-echo "  -> devcontainer.json"
+success "devcontainer.json"
 
 # --- Copy dev.just and README ---
 
@@ -237,10 +250,10 @@ cp "$TEMPLATE_DIR/dev.just" "$DEVCONTAINER_DIR/dev.just" 2>/dev/null || true
 cp "$TEMPLATE_DIR/project-readme.md" "$DEVCONTAINER_DIR/README.md" 2>/dev/null || true
 
 if [ -f "$DEVCONTAINER_DIR/dev.just" ]; then
-    echo "  -> dev.just"
+    success "dev.just"
 fi
 if [ -f "$DEVCONTAINER_DIR/README.md" ]; then
-    echo "  -> README.md"
+    success "README.md"
 fi
 
 # --- Update justfile ---
@@ -250,19 +263,20 @@ MOD_LINE="mod dev '.devcontainer/dev.just'"
 
 if [ -f "$JUSTFILE" ]; then
     if grep -qF "$MOD_LINE" "$JUSTFILE"; then
-        echo "  -> justfile already has mod line"
+        success "justfile already has mod line"
     else
         echo "" >> "$JUSTFILE"
         echo "$MOD_LINE" >> "$JUSTFILE"
-        echo "  -> Added mod line to justfile"
+        success "Added mod line to justfile"
     fi
 else
     echo "$MOD_LINE" > "$JUSTFILE"
-    echo "  -> Created justfile"
+    success "Created justfile"
 fi
 
 echo ""
-echo "Done! Next steps:"
-echo "  just dev::setup    # one-time: install tools + build image"
-echo "  just dev::up       # start sandbox"
-echo "  just dev::claude   # run Claude Code (autonomous)"
+printf "${GREEN}Done!${NC} Next steps:\n"
+printf "  ${BOLD}just dev::setup${NC}    ${DIM}# one-time: install tools + build image${NC}\n"
+printf "  ${BOLD}just dev::up${NC}       ${DIM}# start sandbox${NC}\n"
+printf "  ${BOLD}just dev::claude${NC}   ${DIM}# run Claude Code (autonomous)${NC}\n"
+echo ""
