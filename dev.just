@@ -34,11 +34,27 @@ rebuild:
 rebuild-full:
     devcontainer up --workspace-folder {{ root }} --remove-existing-container --build-no-cache
 
-# Run Claude Code with permissions skipped (safe inside the sandbox)
-# tmux -CC = iTerm2 control mode: native scrolling, native tabs, tmux is invisible
-# New iTerm2 tab (Cmd+T) = new parallel Claude session (via tmux-claude.conf)
+# Run Claude Code with permissions skipped (safe inside the sandbox).
+# tmux -CC = iTerm2 control mode: native scrolling, native tabs, tmux is invisible.
+# New iTerm2 tab (Cmd+T) = new parallel Claude session (via tmux-claude.conf).
+# Session name = project folder; tab color = deterministic from the name, so the
+# same project always gets the same color and different projects differ.
 claude *args:
-    devcontainer exec --workspace-folder {{ root }} tmux -CC -f /home/node/.tmux-claude.conf new-session claude --dangerously-skip-permissions {{ args }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    proj=$(basename "{{ root }}")
+    palette=(
+        "255;140;0"   "0;180;180"   "160;100;220" "100;200;100"
+        "80;140;240"  "230;100;150" "220;200;80"  "80;200;220"
+        "220;80;80"   "160;220;60"  "220;80;200"  "100;180;240"
+    )
+    idx=$(printf '%s' "$proj" | cksum | awk '{print $1 % '"${#palette[@]}"'}')
+    rgb="${palette[$idx]}"
+    devcontainer exec --workspace-folder "{{ root }}" \
+        tmux -CC -f /home/node/.tmux-claude.conf \
+        new-session -s "$proj" -n "$proj" \
+        -e "CLAUDE_TAB_RGB=$rgb" \
+        "bash /home/node/.claude-launch.sh {{ args }}"
 
 # Open a shell inside the devcontainer
 shell:
