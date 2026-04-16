@@ -19,6 +19,16 @@ warn()    { printf "${YELLOW} !${NC} %s\n" "$1"; }
 error()   { printf "${RED} ✗${NC} %s\n" "$1"; }
 step()    { printf "\n${BOLD}%s${NC}\n" "$1"; }
 
+# Accept optional project path argument
+if [ -n "${1:-}" ]; then
+    if [ -d "$1" ]; then
+        cd "$1"
+    else
+        printf "Error: %s is not a directory.\n" "$1" >&2
+        exit 1
+    fi
+fi
+
 PROJECT_DIR="$(pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 DEVCONTAINER_DIR="$PROJECT_DIR/.devcontainer"
@@ -276,7 +286,8 @@ fi
 
 echo ""
 printf "${GREEN}Done!${NC} Next steps:\n"
-printf "  ${BOLD}just dev::setup${NC}    ${DIM}# one-time: install tools + build image${NC}\n"
-printf "  ${BOLD}just dev::up${NC}       ${DIM}# start sandbox${NC}\n"
-printf "  ${BOLD}just dev::claude${NC}   ${DIM}# run Claude Code (autonomous)${NC}\n"
+echo ""
+printf "  ${BOLD}just dev::claude${NC}   ${DIM}# launch Claude Code (starts sandbox automatically)${NC}\n"
+echo ""
+printf "${DIM}If something breaks: just dev::doctor${NC}\n"
 echo ""

@@ -3,45 +3,54 @@
 
 root := justfile_directory()
 
-# One-time setup: install docker CLI, devcontainer CLI, start colima, build image
-setup:
+# Verify and repair: check tools, start colima, rebuild image if pruned
+doctor:
     #!/usr/bin/env bash
     set -euo pipefail
-    command -v docker &>/dev/null || { echo "Installing Docker CLI..."; brew install docker; }
-    command -v devcontainer &>/dev/null || { echo "Installing devcontainer CLI..."; npm install -g @devcontainers/cli; }
-    colima status &>/dev/null 2>&1 || { echo "Starting colima..."; colima start; }
-    echo "Building sandbox image..."
-    docker build -t claude-sandbox ~/.config/claude-devcontainer
-    echo "Done! Run 'just dev::up' then 'just dev::claude'."
-
-# Build (or rebuild) the sandbox image
-build:
-    docker build -t claude-sandbox ~/.config/claude-devcontainer
-
-# Sync dev.just with the template (symlink so future updates auto-apply)
-sync:
-    @ln -sf ~/.config/claude-devcontainer/dev.just {{ root }}/.devcontainer/dev.just && echo "dev.just symlinked to template — future updates auto-apply."
+    ok=true
+    for tool in docker devcontainer colima; do
+        if command -v "$tool" &>/dev/null; then
+            echo "✓ $tool"
+        else
+            echo "✗ $tool — run ~/.config/claude-devcontainer/install.sh"
+            ok=false
+        fi
+    done
+    if colima status &>/dev/null 2>&1; then
+        echo "✓ Colima running"
+    else
+        echo "Starting Colima..."
+        colima start
+    fi
+    if docker image inspect claude-sandbox &>/dev/null 2>&1; then
+        echo "✓ claude-sandbox image"
+    else
+        echo "Rebuilding sandbox image..."
+        docker build -t claude-sandbox ~/.config/claude-devcontainer
+    fi
+    if [ "$ok" = false ]; then
+        echo "Some tools are missing — re-run install.sh."
+        exit 1
+    fi
+    echo "All good."
 
 # Start the devcontainer (idempotent)
 up:
     devcontainer up --workspace-folder {{ root }}
 
-# Rebuild image (uses cache) and restart container
-rebuild:
-    devcontainer up --workspace-folder {{ root }} --remove-existing-container
+# Rebuild image (uses cache) and restart container; pass --build-no-cache for a full rebuild
+rebuild *args:
+    devcontainer up --workspace-folder {{ root }} --remove-existing-container {{ args }}
 
-# Rebuild image from scratch (no cache) and restart container
-rebuild-full:
-    devcontainer up --workspace-folder {{ root }} --remove-existing-container --build-no-cache
-
-# Run Claude Code with permissions skipped (safe inside the sandbox).
-# tmux -CC = iTerm2 control mode: native scrolling, native tabs, tmux is invisible.
-# New iTerm2 tab (Cmd+T) = new parallel Claude session (via tmux-claude.conf).
-# Session name = project folder; tab color = deterministic from the name, so the
-# same project always gets the same color and different projects differ.
+# Run Claude Code (starts sandbox automatically; safe inside the sandbox)
 claude *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    # Auto-start the container if it's not running
+    id=$(docker ps -q --filter "label=devcontainer.local_folder={{ root }}")
+    if [ -z "$id" ]; then
+        devcontainer up --workspace-folder "{{ root }}"
+    fi
     proj=$(basename "{{ root }}")
     palette=(
         "255;140;0"   "0;180;180"   "160;100;220" "100;200;100"
@@ -55,10 +64,6 @@ claude *args:
         new-session -s "$proj" -n "$proj" \
         -e "CLAUDE_TAB_RGB=$rgb" \
         "bash /home/node/.claude-launch.sh {{ args }}"
-
-# Open a shell inside the devcontainer
-shell:
-    devcontainer exec --workspace-folder {{ root }} zsh
 
 # Run any command inside the devcontainer
 exec *args:
@@ -84,7 +89,7 @@ status:
     id=$(docker ps -aq --filter "label=devcontainer.local_folder={{ root }}")
     if [ -z "$id" ]; then
         printf "${YELLOW}Container:${NC} not found\n"
-        printf "${DIM}Run 'just dev::up' to start.${NC}\n"
+        printf "${DIM}Run 'just dev::claude' to start.${NC}\n"
         exit 0
     fi
     state=$(docker inspect -f '{{ "{{" }}.State.Status{{ "}}" }}' "$id")
@@ -122,7 +127,6 @@ playwright-off:
         echo "No .mcp.json found."; exit 0
     fi
     jq 'del(.mcpServers.playwright)' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-    # Remove file if no servers remain
     if [ "$(jq '.mcpServers | length' "$f")" = "0" ]; then
         rm "$f"
     fi
@@ -133,7 +137,7 @@ logs *args:
     #!/usr/bin/env bash
     id=$(docker ps -aq --filter "label=devcontainer.local_folder={{ root }}")
     if [ -z "$id" ]; then
-        echo "No sandbox found. Run 'just dev::up' to start."
+        echo "No sandbox found. Run 'just dev::claude' to start."
         exit 1
     fi
     docker logs {{ args }} "$id"

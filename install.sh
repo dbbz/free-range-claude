@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_DIR="$(dirname "$(realpath "$0")")"
+# --- Self-bootstrap: clone template if needed, re-exec from canonical path ---
+# This lets users install via: curl -fsSL <url>/install.sh | bash
+TARGET="$HOME/.config/claude-devcontainer"
+if [ "${CDEVC_BOOTSTRAPPED:-}" != "1" ]; then
+    if [ ! -d "$TARGET/.git" ]; then
+        command -v git &>/dev/null || { echo "git is required. Install it with: brew install git"; exit 1; }
+        echo "Cloning free-range-claude to $TARGET..."
+        git clone https://github.com/dbbz/free-range-claude.git "$TARGET"
+    fi
+    SELF="$(realpath "$0" 2>/dev/null || echo "")"
+    if [ "$SELF" != "$TARGET/install.sh" ]; then
+        export CDEVC_BOOTSTRAPPED=1
+        exec bash "$TARGET/install.sh" "$@"
+    fi
+fi
+INSTALL_DIR="$TARGET"
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -73,67 +88,86 @@ fi
 docker build ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} -t claude-sandbox "$INSTALL_DIR"
 success "claude-sandbox image built"
 
-# --- Add shell alias/abbreviation ---
+# --- Shell integration ---
 
 step "Shell integration"
 
-ALIAS_CMD="alias claude-devcontainer-init=\"$INSTALL_DIR/init.sh\""
-ABBR_CMD="abbr -a claude-devcontainer-init '$INSTALL_DIR/init.sh'"
+used_symlink=false
 
-added_to_shell=false
+# Prefer symlink in ~/.local/bin (works immediately, no shell reload)
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*)
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$INSTALL_DIR/init.sh" "$HOME/.local/bin/claude-devcontainer-init"
+        success "Symlinked claude-devcontainer-init → ~/.local/bin (available immediately)"
+        used_symlink=true
+        ;;
+esac
 
-# zsh
-if [ -f "$HOME/.zshrc" ]; then
-    SHELL_RC_REAL="$(realpath "$HOME/.zshrc")"
-    if grep -qF "claude-devcontainer-init" "$SHELL_RC_REAL" 2>/dev/null; then
-        success "zsh alias already configured"
-    else
-        echo "" >> "$SHELL_RC_REAL"
-        echo "$ALIAS_CMD" >> "$SHELL_RC_REAL"
-        success "Added alias to .zshrc"
+# Fall back to shell RC alias if symlink wasn't possible
+if [ "$used_symlink" = false ]; then
+    ALIAS_CMD="alias claude-devcontainer-init=\"$INSTALL_DIR/init.sh\""
+    ABBR_CMD="abbr -a claude-devcontainer-init '$INSTALL_DIR/init.sh'"
+
+    added_to_shell=false
+
+    # zsh
+    if [ -f "$HOME/.zshrc" ]; then
+        SHELL_RC_REAL="$(realpath "$HOME/.zshrc")"
+        if grep -qF "claude-devcontainer-init" "$SHELL_RC_REAL" 2>/dev/null; then
+            success "zsh alias already configured"
+        else
+            echo "" >> "$SHELL_RC_REAL"
+            echo "$ALIAS_CMD" >> "$SHELL_RC_REAL"
+            success "Added alias to .zshrc"
+        fi
+        added_to_shell=true
     fi
-    added_to_shell=true
-fi
 
-# bash
-if [ -f "$HOME/.bashrc" ]; then
-    BASH_RC_REAL="$(realpath "$HOME/.bashrc")"
-    if grep -qF "claude-devcontainer-init" "$BASH_RC_REAL" 2>/dev/null; then
-        success "bash alias already configured"
-    else
-        echo "" >> "$BASH_RC_REAL"
-        echo "$ALIAS_CMD" >> "$BASH_RC_REAL"
-        success "Added alias to .bashrc"
+    # bash
+    if [ -f "$HOME/.bashrc" ]; then
+        BASH_RC_REAL="$(realpath "$HOME/.bashrc")"
+        if grep -qF "claude-devcontainer-init" "$BASH_RC_REAL" 2>/dev/null; then
+            success "bash alias already configured"
+        else
+            echo "" >> "$BASH_RC_REAL"
+            echo "$ALIAS_CMD" >> "$BASH_RC_REAL"
+            success "Added alias to .bashrc"
+        fi
+        added_to_shell=true
     fi
-    added_to_shell=true
-fi
 
-# fish
-FISH_CONFIG="$HOME/.config/fish/config.fish"
-if [ -f "$FISH_CONFIG" ]; then
-    if grep -qF "claude-devcontainer-init" "$FISH_CONFIG" 2>/dev/null; then
-        success "fish abbreviation already configured"
-    else
-        echo "" >> "$FISH_CONFIG"
-        echo "$ABBR_CMD" >> "$FISH_CONFIG"
-        success "Added abbreviation to config.fish"
+    # fish
+    FISH_CONFIG="$HOME/.config/fish/config.fish"
+    if [ -f "$FISH_CONFIG" ]; then
+        if grep -qF "claude-devcontainer-init" "$FISH_CONFIG" 2>/dev/null; then
+            success "fish abbreviation already configured"
+        else
+            echo "" >> "$FISH_CONFIG"
+            echo "$ABBR_CMD" >> "$FISH_CONFIG"
+            success "Added abbreviation to config.fish"
+        fi
+        added_to_shell=true
     fi
-    added_to_shell=true
-fi
 
-if [ "$added_to_shell" = false ]; then
-    warn "Could not find .zshrc, .bashrc, or config.fish"
-    echo "  Add this alias manually:"
-    printf "  ${DIM}%s${NC}\n" "$ALIAS_CMD"
+    if [ "$added_to_shell" = false ]; then
+        warn "Could not find .zshrc, .bashrc, or config.fish"
+        echo "  Add this alias manually:"
+        printf "  ${DIM}%s${NC}\n" "$ALIAS_CMD"
+    fi
 fi
 
 echo ""
 printf "${GREEN}Done!${NC} Next steps:\n"
 echo ""
-printf "  ${BOLD}1.${NC} Reload your shell:  ${DIM}source ~/.zshrc${NC}\n"
-printf "  ${BOLD}2.${NC} Set up a project:   ${DIM}cd my-project && claude-devcontainer-init${NC}\n"
-printf "  ${BOLD}3.${NC} Start the sandbox:  ${DIM}just dev::up${NC}\n"
-printf "  ${BOLD}4.${NC} Launch Claude:      ${DIM}just dev::claude${NC}\n"
+if [ "$used_symlink" = true ]; then
+    printf "  ${BOLD}1.${NC} Set up a project:  ${DIM}claude-devcontainer-init ~/my-project${NC}\n"
+    printf "  ${BOLD}2.${NC} Launch Claude:     ${DIM}cd ~/my-project && just dev::claude${NC}\n"
+else
+    printf "  ${BOLD}1.${NC} Reload your shell: ${DIM}source ~/.zshrc${NC}\n"
+    printf "  ${BOLD}2.${NC} Set up a project:  ${DIM}claude-devcontainer-init ~/my-project${NC}\n"
+    printf "  ${BOLD}3.${NC} Launch Claude:     ${DIM}cd ~/my-project && just dev::claude${NC}\n"
+fi
 echo ""
 printf "${DIM}iTerm2 tip: set the tmux profile window style to Maximized${NC}\n"
 printf "${DIM}  Preferences > Profiles > tmux > Window > Style: Maximized${NC}\n"

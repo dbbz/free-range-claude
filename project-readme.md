@@ -6,20 +6,17 @@ to run Claude Code autonomously inside a firewalled container.
 ## Usage
 
 ```bash
-just dev::setup              # one-time: install tools + build image
-just dev::up                 # start the sandbox (idempotent)
-just dev::claude             # run Claude Code (autonomous, permissions skipped)
+just dev::claude             # launch Claude Code (starts sandbox automatically)
 just dev::claude -p "prompt" # run with a specific prompt
-just dev::shell              # interactive zsh inside the sandbox
 just dev::exec cargo test    # run any command inside the sandbox
+just dev::exec zsh           # interactive shell inside the sandbox
 just dev::status             # container & firewall health at a glance
 just dev::logs               # tail container logs (-f to follow)
 just dev::down               # stop and remove the container
 just dev::rebuild            # rebuild image (cached) + restart
-just dev::rebuild-full       # rebuild image from scratch + restart
+just dev::doctor             # verify and repair: tools, colima, image
 just dev::playwright-on      # enable Playwright MCP (browser automation)
 just dev::playwright-off     # disable it
-just dev::sync               # re-link dev.just to the template (one-time migration)
 ```
 
 Cmd+T in the iTerm2 window opens a new parallel Claude session.

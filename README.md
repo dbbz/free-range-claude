@@ -44,32 +44,39 @@ If you want something different, fork it and customize it -- with Claude Code it
 
 ```bash
 # Install (one-time)
-git clone https://github.com/dbbz/free-range-claude ~/.config/claude-devcontainer
-~/.config/claude-devcontainer/install.sh
+curl -fsSL https://raw.githubusercontent.com/dbbz/free-range-claude/main/install.sh | bash
 
 # Set up a project
-cd my-project
-claude-devcontainer-init
+claude-devcontainer-init ~/my-project
 
 # Launch
-just dev::up
+cd ~/my-project
 just dev::claude
 ```
 
 ## Install
 
 ```bash
-git clone https://github.com/dbbz/free-range-claude ~/.config/claude-devcontainer
-~/.config/claude-devcontainer/install.sh
+curl -fsSL https://raw.githubusercontent.com/dbbz/free-range-claude/main/install.sh | bash
 ```
 
-This installs prerequisites (docker CLI, devcontainer CLI), builds the sandbox image, and adds a `claude-devcontainer-init` alias to your shell (zsh, bash, and fish).
+This clones the template to `~/.config/claude-devcontainer`, installs prerequisites (docker CLI, colima, devcontainer CLI, just), builds the sandbox image, and makes `claude-devcontainer-init` available in your shell.
 
 To use a different base image (e.g. for a Python-heavy setup):
 
 ```bash
 BASE_IMAGE=python:3.13-bookworm ~/.config/claude-devcontainer/install.sh
 ```
+
+<details>
+<summary>Manual install (offline / forked repos)</summary>
+
+```bash
+git clone https://github.com/dbbz/free-range-claude ~/.config/claude-devcontainer
+~/.config/claude-devcontainer/install.sh
+```
+
+</details>
 
 ### iTerm2 setup
 
@@ -79,13 +86,23 @@ Open iTerm2 Preferences and configure the tmux profile:
 
 This makes Claude sessions open full-screen instead of a small default window.
 
+### How the iTerm2 integration works
+
+`just dev::claude` opens a new iTerm2 window powered by tmux in [control mode](https://iterm2.com/documentation-tmux-integration.html) (`tmux -CC`). tmux is invisible -- you get native iTerm2 tabs, scrolling, and selection, but everything runs inside the container.
+
+- **Tab title** = your project folder name, so you always know which sandbox you're looking at.
+- **Tab color** = a deterministic color derived from the project name. Different projects get different colors; the same project always gets the same color. No configuration needed.
+- **`Cmd+T`** opens a new tab with a fresh, parallel Claude Code session -- still inside the same sandbox, sharing the same project files and firewall.
+- **`Cmd+W`** closes a single session. When the last tab closes, the iTerm2 window goes away (the container keeps running in the background).
+
+In practice, you run `just dev::claude` once, and from there you live in iTerm2: `Cmd+T` to spin up more agents, `Cmd+W` to dismiss finished ones. Everything stays sandboxed.
+
 ## Usage
 
 ### Set up a project
 
 ```bash
-cd my-project
-claude-devcontainer-init
+claude-devcontainer-init ~/my-project
 ```
 
 The wizard asks three questions:
@@ -98,15 +115,15 @@ It generates a `.devcontainer/` directory and adds one line to your justfile.
 ### Day-to-day
 
 ```bash
-just dev::up                 # start the sandbox (idempotent)
-just dev::claude             # launch Claude Code (autonomous, firewalled)
+just dev::claude             # launch Claude Code (starts sandbox automatically)
 just dev::claude -p "prompt" # with a specific prompt
-just dev::shell              # interactive zsh inside the sandbox
 just dev::exec cargo test    # run any command inside
+just dev::exec zsh           # interactive shell inside the sandbox
 just dev::status             # container & firewall health at a glance
 just dev::logs               # tail container logs
 just dev::down               # tear down the container
 just dev::rebuild            # rebuild image (cached) + restart
+just dev::doctor             # verify and repair: tools, colima, image
 just dev::playwright-on      # enable the Playwright MCP server for this project
 just dev::playwright-off     # disable it
 ```
@@ -114,8 +131,6 @@ just dev::playwright-off     # disable it
 ### Browser automation (Playwright MCP)
 
 The sandbox image bundles [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) and a headless Chromium so Claude Code can drive a browser without reaching outside the firewall. It's off by default -- enable it per-project with `just dev::playwright-on`, then restart Claude.
-
-`Cmd+T` in the iTerm2 window opens a new tab with another Claude Code session. Each tab is an independent, parallel session -- all sandboxed, all sharing the same project.
 
 ## How it works
 
@@ -166,9 +181,10 @@ This is defense-in-depth, not absolute isolation. Use it with repositories you t
 | `Dockerfile` | Base image: Node.js 20 + Claude Code + zsh + tmux + firewall tools |
 | `init-firewall.sh` | iptables firewall, runs on container startup |
 | `tmux-claude.conf` | tmux config: every new window = new Claude session |
+| `claude-launch.sh` | Launcher: sets iTerm2 tab color per project, then execs claude |
 | `dev.just` | Template just module, symlinked into each project's `.devcontainer/` |
-| `init.sh` | Per-project wizard |
-| `install.sh` | One-time machine setup |
+| `init.sh` | Per-project wizard (also available as `claude-devcontainer-init`) |
+| `install.sh` | One-time machine setup (supports `curl \| bash`) |
 | `project-readme.md` | Template README, copied into each project's `.devcontainer/` |
 
 ## Updating
@@ -176,10 +192,10 @@ This is defense-in-depth, not absolute isolation. Use it with repositories you t
 ```bash
 cd ~/.config/claude-devcontainer
 git pull
-just dev::build   # from any project -- rebuilds the shared image
+just dev::rebuild   # from any project -- rebuilds the shared image + restarts
 ```
 
-Each project's `.devcontainer/dev.just` is a symlink to the template, so recipe changes apply immediately -- no per-project update step. Projects initialized before the symlink change still have a plain copy; run `just dev::sync` inside those once to replace it with a symlink.
+Each project's `.devcontainer/dev.just` is a symlink to the template, so recipe changes apply immediately -- no per-project update step.
 
 ## First-time auth
 
