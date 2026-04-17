@@ -3,6 +3,19 @@
 
 root := justfile_directory()
 
+# Ensure Colima (the Docker runtime) is running. Silent when already up; prints a
+# one-liner with expected latency when cold-starting so the user knows why the
+# next 15–30s are idle. Used as a dependency for every recipe that touches Docker.
+_ensure-colima:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if colima status &>/dev/null 2>&1; then
+        exit 0
+    fi
+    YELLOW='\033[1;33m' DIM='\033[2m' NC='\033[0m'
+    printf "${YELLOW}Colima isn't running${NC} — starting it now ${DIM}(~15–30s cold start, then stays warm)${NC}\n"
+    colima start
+
 # Verify and repair: check tools, start colima, rebuild image if pruned
 doctor:
     #!/usr/bin/env bash
@@ -35,15 +48,15 @@ doctor:
     echo "All good."
 
 # Start the devcontainer (idempotent)
-up:
+up: _ensure-colima
     devcontainer up --workspace-folder {{ root }}
 
 # Rebuild image (uses cache) and restart container; pass --build-no-cache for a full rebuild
-rebuild *args:
+rebuild *args: _ensure-colima
     devcontainer up --workspace-folder {{ root }} --remove-existing-container {{ args }}
 
 # Run Claude Code (starts sandbox automatically; safe inside the sandbox)
-claude *args:
+claude *args: _ensure-colima
     #!/usr/bin/env bash
     set -euo pipefail
     # Auto-start the container if it's not running
@@ -51,19 +64,28 @@ claude *args:
     if [ -z "$id" ]; then
         devcontainer up --workspace-folder "{{ root }}"
     fi
-    proj=$(basename "{{ root }}")
-    palette=(
-        "255;140;0"   "0;180;180"   "160;100;220" "100;200;100"
-        "80;140;240"  "230;100;150" "220;200;80"  "80;200;220"
-        "220;80;80"   "160;220;60"  "220;80;200"  "100;180;240"
-    )
-    idx=$(printf '%s' "$proj" | cksum | awk '{print $1 % '"${#palette[@]}"'}')
-    rgb="${palette[$idx]}"
-    devcontainer exec --workspace-folder "{{ root }}" \
-        tmux -CC -f /home/node/.tmux-claude.conf \
-        new-session -s "$proj" -n "$proj" \
-        -e "CLAUDE_TAB_RGB=$rgb" \
-        "bash /home/node/.claude-launch.sh {{ args }}"
+    # iTerm2 gets the tmux -CC path (native tabs + per-project tab color).
+    # Every other terminal (cmux, Terminal.app, Alacritty, Kitty…) runs claude
+    # directly — the host terminal handles tabs/panes; parallel sessions = open
+    # another pane and re-run `just dev::claude` (devcontainer up is idempotent).
+    if [ "${TERM_PROGRAM:-}" = "iTerm.app" ]; then
+        proj=$(basename "{{ root }}")
+        palette=(
+            "255;140;0"   "0;180;180"   "160;100;220" "100;200;100"
+            "80;140;240"  "230;100;150" "220;200;80"  "80;200;220"
+            "220;80;80"   "160;220;60"  "220;80;200"  "100;180;240"
+        )
+        idx=$(printf '%s' "$proj" | cksum | awk '{print $1 % '"${#palette[@]}"'}')
+        rgb="${palette[$idx]}"
+        devcontainer exec --workspace-folder "{{ root }}" \
+            tmux -CC -f /home/node/.tmux-claude.conf \
+            new-session -s "$proj" -n "$proj" \
+            -e "CLAUDE_TAB_RGB=$rgb" \
+            "bash /home/node/.claude-launch.sh {{ args }}"
+    else
+        devcontainer exec --workspace-folder "{{ root }}" \
+            bash /home/node/.claude-launch.sh {{ args }}
+    fi
 
 # Run any command inside the devcontainer
 exec *args:

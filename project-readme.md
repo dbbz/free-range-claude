@@ -19,7 +19,8 @@ just dev::playwright-on      # enable Playwright MCP (browser automation)
 just dev::playwright-off     # disable it
 ```
 
-Cmd+T in the iTerm2 window opens a new parallel Claude session.
+In iTerm2, `Cmd+T` opens a new parallel Claude session in the same sandbox.
+In any other terminal (e.g. [cmux](https://cmux.com/)), open a new pane/tab and re-run `just dev::claude` -- it reuses the running sandbox.
 
 ## Files
 

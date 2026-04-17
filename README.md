@@ -34,7 +34,7 @@ flowchart LR
 This is opinionated and not sorry about it:
 
 - **macOS** with [Colima](https://github.com/abiosoft/colima) (Docker runtime, uses Apple Virtualization.framework)
-- **[iTerm2](https://iterm2.com/)** with tmux -CC for native terminal integration
+- **[iTerm2](https://iterm2.com/)** for the enhanced experience (tmux -CC native tabs + per-project tab color); any terminal works in plain mode (tested with [cmux](https://cmux.com/))
 - **[just](https://github.com/casey/just)** as the task runner
 - **zsh** as the shell
 
@@ -78,24 +78,20 @@ git clone https://github.com/dbbz/free-range-claude ~/.config/claude-devcontaine
 
 </details>
 
-### iTerm2 setup
+### Terminal integration
 
-Open iTerm2 Preferences and configure the tmux profile:
+`just dev::claude` detects your terminal via `$TERM_PROGRAM` and picks one of two paths:
 
-**Profiles > tmux > Window > Style: Maximized**
-
-This makes Claude sessions open full-screen instead of a small default window.
-
-### How the iTerm2 integration works
-
-`just dev::claude` opens a new iTerm2 window powered by tmux in [control mode](https://iterm2.com/documentation-tmux-integration.html) (`tmux -CC`). tmux is invisible -- you get native iTerm2 tabs, scrolling, and selection, but everything runs inside the container.
+**iTerm2 — enhanced mode.** Opens a new window powered by tmux in [control mode](https://iterm2.com/documentation-tmux-integration.html) (`tmux -CC`). tmux is invisible -- you get native iTerm2 tabs, scrolling, and selection, but everything runs inside the container.
 
 - **Tab title** = your project folder name, so you always know which sandbox you're looking at.
 - **Tab color** = a deterministic color derived from the project name. Different projects get different colors; the same project always gets the same color. No configuration needed.
 - **`Cmd+T`** opens a new tab with a fresh, parallel Claude Code session -- still inside the same sandbox, sharing the same project files and firewall.
 - **`Cmd+W`** closes a single session. When the last tab closes, the iTerm2 window goes away (the container keeps running in the background).
 
-In practice, you run `just dev::claude` once, and from there you live in iTerm2: `Cmd+T` to spin up more agents, `Cmd+W` to dismiss finished ones. Everything stays sandboxed.
+To make sessions open full-screen instead of a small default window, set **iTerm2 Preferences > Profiles > tmux > Window > Style: Maximized**.
+
+**Everything else (cmux, Terminal.app, Alacritty, Kitty, …) — plain mode.** No tmux; `claude` runs directly via `devcontainer exec` in your current pane. For parallel sessions, open another pane/tab in your terminal and re-run `just dev::claude` — `devcontainer up` is idempotent, so every invocation lands in the same sandbox. The host terminal (e.g. cmux's vertical tabs) handles layout. You lose the per-project tab color and, if you close the pane, that claude process exits with it — use `claude --continue` in a fresh pane to resume the conversation.
 
 ## Usage
 
@@ -136,9 +132,11 @@ The sandbox image bundles [`@playwright/mcp`](https://github.com/microsoft/playw
 
 ```mermaid
 flowchart TB
-    cmd["just dev::claude"] --> dc["devcontainer exec"]
-    dc --> tmux["tmux -CC\n(iTerm2 native integration)"]
+    cmd["just dev::claude"] --> term{"$TERM_PROGRAM\n= iTerm.app?"}
+    term -- "yes" --> tmux["devcontainer exec\n→ tmux -CC\n(native iTerm2 tabs)"]
+    term -- "no" --> bare["devcontainer exec\n(bare, host terminal\nhandles tabs/panes)"]
     tmux --> claude["Claude Code\n--dangerously-skip-permissions"]
+    bare --> claude
 
     project[("~/my-project")] -.->|"bind mount"| claude
     creds[("~/.claude")] -.->|"bind mount"| claude
