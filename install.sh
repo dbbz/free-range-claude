@@ -85,7 +85,18 @@ if [ -n "${BASE_IMAGE:-}" ]; then
     info "Using base image: $BASE_IMAGE"
     BUILD_ARGS+=(--build-arg "BASE_IMAGE=$BASE_IMAGE")
 fi
-docker build ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} -t claude-sandbox "$INSTALL_DIR"
+
+# Resolve Claude Code's latest version on the host so it becomes part of
+# Docker's cache key — otherwise `@latest` in the Dockerfile is opaque to
+# Docker and the npm-install layer is reused indefinitely.
+if CLAUDE_VER=$(npm view @anthropic-ai/claude-code version 2>/dev/null) && [ -n "$CLAUDE_VER" ]; then
+    info "Pinning Claude Code to $CLAUDE_VER (latest on npm)"
+    BUILD_ARGS+=(--build-arg "CLAUDE_CODE_VERSION=$CLAUDE_VER")
+else
+    warn "Could not resolve latest Claude Code version from npm — image may use cached version"
+fi
+
+docker build --pull ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} -t claude-sandbox "$INSTALL_DIR"
 success "claude-sandbox image built"
 
 # --- Shell integration ---
