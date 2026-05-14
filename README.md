@@ -128,6 +128,48 @@ just dev::playwright-off     # disable it
 
 The sandbox image bundles [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) and a headless Chromium so Claude Code can drive a browser without reaching outside the firewall. It's off by default -- enable it per-project with `just dev::playwright-on`, then restart Claude.
 
+## Recipes
+
+Small, common situations and the practical way to handle them inside the sandbox.
+
+### Using `/add-dir` for a path outside the project
+
+Claude Code's `/add-dir` adds a directory to the working set, but the path has to exist **inside the container**. The sandbox only mounts the project dir and `~/.claude`, so:
+
+- **Sibling path already inside the container** (anywhere under `/workspaces/`, `~/.claude`, etc.): `/add-dir /workspaces/other-thing` just works.
+- **Host path that isn't mounted yet**: Docker can't add a bind mount to a running container. Edit `.devcontainer/devcontainer.json`, add an entry to `mounts`, and rebuild:
+  ```bash
+  just dev::rebuild
+  ```
+- **One-off snapshot** (read-only, no sync): `docker cp` the directory in, then fix ownership so the in-container `node` user (which is what Claude runs as) can read it:
+  ```bash
+  CID=$(docker ps -q --filter "label=devcontainer.local_folder=$PWD")
+  docker cp ~/other-dir "$CID":/workspaces/other-dir
+  docker exec -u root "$CID" chown -R node:node /workspaces/other-dir
+  ```
+  `docker cp` preserves the host file's UID/GID; the `chown` is cheap insurance against a mismatch (e.g. files owned by root, or a host UID the container doesn't know about). Run from the project root so the `local_folder` label matches.
+
+### Hot-adding an IP or CIDR to the firewall
+
+The allowlist is an `ipset` named `allowed-domains` (type `hash:net` -- accepts bare IPs and CIDRs). Add at runtime without rebuilding:
+
+```bash
+just dev::exec sudo ipset add allowed-domains 1.2.3.4
+just dev::exec sudo ipset add allowed-domains 1.2.3.0/24
+```
+
+This is **ephemeral**: it's wiped whenever `init-firewall.sh` re-runs (i.e. every container start, via `postStartCommand`). For a permanent entry, add the IP/CIDR/domain to `EXTRA_ALLOWED_HOSTS` in `.devcontainer/devcontainer.json` and rebuild -- that path supports all three formats.
+
+### Finding the container ID
+
+Several recipes need the running container's ID (for `docker cp`, `docker exec`, `docker inspect`, …). The `dev.just` recipes find it via the devcontainer label, and you can do the same from the project root:
+
+```bash
+docker ps -q --filter "label=devcontainer.local_folder=$PWD"
+```
+
+Inline it into commands with `$(...)` rather than copy-pasting an ID that changes on every rebuild.
+
 ## How it works
 
 ```mermaid
